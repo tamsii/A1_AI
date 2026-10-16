@@ -1,0 +1,3 @@
+{
+    "_comment": "Map a Telekom Description (or Name) to a match key brand|model|storage, e.g. \"Moto Edge70 Fusion 256GB Black+MotoWatch\": \"motorola|edge70fusion|256gb\". Use null to stop a Telekom device from matching. Keys starting with _ are ignored."
+}
