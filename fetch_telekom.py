@@ -80,7 +80,12 @@ def request_page(cfg, variables, timeout, retries):
         except urllib.error.HTTPError as e:
             # 4xx (except 429) will not fix itself; retry 429 and 5xx
             if attempt == retries or (400 <= e.code < 500 and e.code != 429):
-                raise FetchError(f"{method} {url} -> HTTP {e.code} {e.reason}")
+                try:
+                    detail = e.read().decode("utf-8", "replace").strip()[:300]
+                except Exception:
+                    detail = ""
+                raise FetchError(f"{method} {url} -> HTTP {e.code} {e.reason}"
+                                 + (f"\nServer said: {detail}" if detail else ""))
         except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
             if attempt == retries:
                 raise FetchError(f"{method} {url} -> {getattr(e, 'reason', e)}")
@@ -170,8 +175,23 @@ def list_categories(cfg, timeout, retries):
     url = cfg.get("categories_url")
     if not url:
         raise FetchError("No 'categories_url' in the config")
-    data = request_page({"url": url, "method": "GET", "headers": cfg.get("headers")},
-                        {}, timeout, retries)
+    # The site may expect GET or POST; try the configured one, then the other.
+    first = cfg.get("categories_method", "GET").upper()
+    attempts = [(first, cfg.get("categories_body"))]
+    attempts.append(("POST", cfg.get("categories_body") or {}) if first == "GET" else ("GET", None))
+    errors = []
+    for method, body in attempts:
+        try:
+            data = request_page({"url": url, "method": method, "body": body,
+                                 "headers": cfg.get("headers")}, {}, timeout, min(retries, 1))
+            break
+        except FetchError as e:
+            errors.append(str(e))
+    else:
+        raise FetchError("Category list failed with both GET and POST:\n  " + "\n  ".join(errors)
+                         + "\nCheck in the browser (DevTools > Network) how the site calls "
+                           "GetAllCategories and set categories_method / categories_body in "
+                           "the config. This step is optional: phones use category MKT00006.")
     cats = find_categories(data)
     if not cats:
         raise FetchError(f"No categories found in the response from {url}")
