@@ -6,6 +6,7 @@ so colours/SKUs of one model are one entry, as on the comparison page.
 """
 
 import csv
+import json
 import os
 import re
 import sys
@@ -145,7 +146,9 @@ def fmt_mkd(n):
 class Catalog:
     def __init__(self, path):
         self.path = path
-        self.specs_path = os.path.join(os.path.dirname(os.path.abspath(path)), "phone_specs.csv")
+        folder = os.path.dirname(os.path.abspath(path))
+        self.specs_path = os.path.join(folder, "phone_specs.csv")
+        self.details_path = os.path.join(folder, "phone_details.json")  # from fetch_details.py
         self.mtime = None
         self.phones = []
         self.reload_if_changed()
@@ -153,15 +156,23 @@ class Catalog:
     def reload_if_changed(self):
         """Re-read the files when they change, so a new fetch_a1.py run or an
         edited phone_specs.csv is picked up without a restart."""
-        specs_mtime = os.path.getmtime(self.specs_path) if os.path.exists(self.specs_path) else None
-        mtime = (os.path.getmtime(self.path), specs_mtime)
+        def mtime_of(p):
+            return os.path.getmtime(p) if os.path.exists(p) else None
+        mtime = (os.path.getmtime(self.path), mtime_of(self.specs_path), mtime_of(self.details_path))
         if mtime == self.mtime:
             return
         try:
-            specs = read_specs(self.specs_path) if specs_mtime else {}
+            specs = read_specs(self.specs_path) if mtime[1] else {}
         except (OSError, csv.Error, UnicodeDecodeError) as e:
             print(f"WARNING: could not read {self.specs_path}: {e}", file=sys.stderr)
             specs = {}
+        try:
+            with open(self.details_path, encoding="utf-8") as f:
+                page_details = json.load(f) if mtime[2] else {}
+        except (OSError, ValueError) as e:
+            if mtime[2]:
+                print(f"WARNING: could not read {self.details_path}: {e}", file=sys.stderr)
+            page_details = {}
         data = compare_phones.load_json(self.path)
         phones = compare_phones.parse_a1(data, [])
         # Every real product link, by its SKU number and by its name part, to
@@ -177,6 +188,9 @@ class Catalog:
             p["tokens"] = tokens(p["title"]) | {p["brand"].lower()}
             p["model_key"] = model_key(p)
             p["specs"] = {k: v for k, v in specs.get(p["model_key"], {}).items() if v}
+            page = page_details.get(p["name"]) or {}
+            p["page_fields"] = page.get("fields") or {}
+            p["in_box"] = page.get("in_box") or []
         self.phones = [p for p in phones if p["available"]]
         self.mtime = mtime
 
@@ -205,7 +219,9 @@ class Catalog:
         """One line per phone, sorted by brand then price, for the system prompt."""
         rows = sorted(self.phones, key=lambda p: (p["brand"], p["price_outright"] or 0))
         def line(p):
-            short = "; ".join(p["specs"][c] for c in ("camera", "battery", "screen") if c in p["specs"])
+            short = "; ".join(p["specs"][c] for c in ("camera", "battery", "screen") if c in p["specs"]) \
+                or "; ".join(f"{k} {p['page_fields'][k]}" for k in ("Камера", "Големина на екранот")
+                             if k in p["page_fields"])
             return f"- {p['title']}: {fmt_mkd(p['price_outright'])}" + (f" ({short})" if short else "")
         return "\n".join(map(line, rows))
 
@@ -271,6 +287,11 @@ class Catalog:
         for c in SPEC_COLUMNS:
             if c in p["specs"]:
                 lines.append(f"- {SPEC_LABELS[c]}: {p['specs'][c]}")
+        if p["page_fields"]:
+            lines.append("- Specifications from the a1.mk page:")
+            lines += [f"  - {k}: {v}" for k, v in p["page_fields"].items()]
+        if p["in_box"]:
+            lines.append(f"- In the box: {', '.join(p['in_box'])}")
         if p["colors"]:
             lines.append(f"- Colours: {', '.join(dict.fromkeys(p['colors']))}")
         if p["url"]:

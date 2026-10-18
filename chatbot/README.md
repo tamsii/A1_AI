@@ -23,6 +23,7 @@ Files:
 | File | What it does |
 |---|---|
 | `server.py` | The chat server. Python 3.8+, standard library only. |
+| `fetch_details.py` | Reads the specs table from each phone's page on a1.mk into `phone_details.json`. |
 | `specs.py` | Creates or updates `phone_specs.csv`, the specs table you fill in. |
 | `catalog.py` | Finds phones in a question ("галакси А57", "iphone 17 pro max", "Samsung до 20.000 ден") and formats their data. |
 | `widget.js` | The chat bubble. One `<script>` tag adds it to any page. |
@@ -98,6 +99,26 @@ To make it faster:
 - The first question after starting is slower. Later questions reuse what Ollama has already read.
 
 ## Phone specifications
+
+### From the a1.mk phone pages (automatic)
+
+`fetch_details.py` opens each phone's page on a1.mk, reads the
+**Детални карактеристики** table and **Што има во кутијата**, and saves them
+to `phone_details.json`. The bot adds them to its answers.
+
+```bash
+# 1. Check one page first: prints the table it found, saves nothing
+python3 chatbot/fetch_details.py --test https://www.a1.mk/webshop/mk/phones/apple-iphone-18-pro-512gb/1000069047
+# 2. All phones (about a minute; progress is saved every 10 phones)
+python3 chatbot/fetch_details.py
+# Later, only phones that don't have details yet:
+python3 chatbot/fetch_details.py --only-missing
+```
+
+The server picks up the new file on the next question. Phones whose page has
+no table are reported as "no table on the page". For those, use the table below.
+
+### By hand
 
 `phone_specs.csv` (in the project folder) holds the specs the bot uses:
 screen, camera, battery, processor (`chip`), RAM and `other`. There is one
