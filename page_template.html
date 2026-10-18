@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A1 vs Telekom Phones</title>
+<style>
+  :root {
+    --bg: #f6f6f4;
+    --surface: #ffffff;
+    --text: #1b1c1e;
+    --muted: #5d6066;
+    --line: #e2e2de;
+    --accent: #1f5fbf;
+    --good: #17734a;
+    --good-bg: #e5f3ea;
+    --neutral-bg: #efefec;
+    --radius: 6px;
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141517;
+      --surface: #1c1d20;
+      --text: #ececea;
+      --muted: #a3a6ad;
+      --line: #313338;
+      --accent: #7aa8f0;
+      --good: #6fd3a0;
+      --good-bg: #1d3328;
+      --neutral-bg: #26282c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 var(--font); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; font-weight: 650; }
+  .sub { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+
+  .summary { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 0 0 20px; padding: 14px 16px;
+             background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+  .summary div { display: flex; flex-direction: column; }
+  .summary b { font-size: 20px; font-variant-numeric: tabular-nums; }
+  .summary span { color: var(--muted); font-size: 13px; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-bottom: 12px; }
+  .controls label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  input, select { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line);
+                  border-radius: var(--radius); padding: 0 10px; height: 40px; min-width: 0; }
+  input[type=search] { width: 260px; }
+  .seg { display: flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+  .seg button { font: inherit; font-size: 14px; border: 0; background: none; color: var(--text); padding: 0 12px;
+                height: 38px; cursor: pointer; border-right: 1px solid var(--line); }
+  .seg button:last-child { border-right: 0; }
+  .seg button[aria-pressed=true] { background: var(--accent); color: #fff; }
+  @media (prefers-color-scheme: dark) { .seg button[aria-pressed=true] { color: #10131a; } }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .count { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+  table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line);
+          border-radius: var(--radius); overflow: hidden; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; background: var(--neutral-bg); }
+  th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  th button { font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  tr.row { cursor: pointer; }
+  tr.row:hover td { background: var(--neutral-bg); }
+  .name { font-weight: 600; }
+  .meta { color: var(--muted); font-size: 13px; }
+  .win { color: var(--good); font-weight: 650; }
+  .badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+  .badge.good { background: var(--good-bg); color: var(--good); }
+  .badge.plain { background: var(--neutral-bg); color: var(--muted); }
+  .toggle { font: inherit; background: none; border: 0; color: var(--accent); cursor: pointer; padding: 6px; min-width: 44px; min-height: 44px; }
+  tr.detail td { background: var(--bg); padding: 14px 16px 18px; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .cols h3 { font-size: 14px; margin: 0 0 6px; }
+  dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 14px; }
+  dt { color: var(--muted); }
+  dd { margin: 0; }
+  a { color: var(--accent); }
+  .empty { padding: 32px 16px; text-align: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+  .empty button { font: inherit; margin-top: 10px; height: 40px; padding: 0 14px; border-radius: var(--radius);
+                  border: 1px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer; }
+
+  @media (max-width: 720px) {
+    input[type=search] { width: 100%; }
+    .controls label.search { flex: 1 1 100%; }
+    thead { display: none; }
+    table, tbody, tr, td { display: block; width: 100%; }
+    table { border: 0; background: none; }
+    tr.row { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); margin-top: 8px;
+             display: grid; grid-template-columns: 1fr auto; padding: 10px 12px; }
+    tr.row td { border: 0; padding: 2px 0; background: none !important; }
+    tr.row td.c-name { grid-column: 1 / -1; }
+    tr.row td.num { text-align: left; }
+    tr.row td.num::before { content: attr(data-label) " "; color: var(--muted); font-size: 13px; }
+    tr.row td.c-toggle { grid-column: 2; grid-row: 2 / span 3; align-self: center; }
+    tr.detail { border: 1px solid var(--line); border-top: 0; border-radius: 0 0 var(--radius) var(--radius); margin-top: -4px; }
+    tr.detail td { border: 0; }
+    .cols { grid-template-columns: 1fr; gap: 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>A1 vs Telekom phone prices</h1>
+  <p class="sub" id="sub"></p>
+  <div class="summary" id="summary"></div>
+
+  <div class="controls">
+    <label class="search">Search
+      <input type="search" id="q" placeholder="e.g. iPhone 18, Galaxy S26" autocomplete="off">
+    </label>
+    <label>Brand
+      <select id="brand"><option value="">All brands</option></select>
+    </label>
+    <div>
+      <div class="meta" id="show-label" style="margin-bottom:4px">Show</div>
+      <div class="seg" role="group" aria-labelledby="show-label" id="show">
+        <button type="button" data-v="all" aria-pressed="true">All</button>
+        <button type="button" data-v="A1" aria-pressed="false">A1 cheaper</button>
+        <button type="button" data-v="Telekom" aria-pressed="false">Telekom cheaper</button>
+        <button type="button" data-v="both" aria-pressed="false">At both</button>
+        <button type="button" data-v="a1only" aria-pressed="false">Only at A1</button>
+      </div>
+    </div>
+    <label>Sort by
+      <select id="sort">
+        <option value="name">Name</option>
+        <option value="gap-desc">Biggest difference</option>
+        <option value="a1-asc">A1 price, low to high</option>
+        <option value="a1-desc">A1 price, high to low</option>
+      </select>
+    </label>
+  </div>
+
+  <p class="count" id="count" aria-live="polite"></p>
+  <div id="list"></div>
+</div>
+
+<script id="data" type="application/json">/*DATA*/</script>
+<script>
+(function () {
+  var data;
+  try { data = JSON.parse(document.getElementById('data').textContent); } catch (e) { data = null; }
+  var list = document.getElementById('list');
+  if (!data || !Array.isArray(data.phones)) {
+    list.innerHTML = '<div class="empty"><p>No comparison data in this page.</p>' +
+      '<p class="meta">Run <code>python run_all.py</code> (or <code>python compare_phones.py</code>) to rebuild it.</p></div>';
+    return;
+  }
+  var cur = data.currency || 'MKD';
+  var phones = data.phones;
+  var state = { q: '', brand: '', show: 'all', sort: 'name', open: {} };
+
+  function money(n) { return n == null ? '–' : n.toLocaleString('en-US') + ' ' + cur; }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function atTk(p) { return p.telekom && p.telekom.available; }
+  function cheaper(p) { return p.comparison ? p.comparison.cheaper_at : null; }
+
+  // summary
+  var both = phones.filter(atTk), a1c = both.filter(function (p) { return cheaper(p) === 'A1'; }).length,
+      tkc = both.filter(function (p) { return cheaper(p) === 'Telekom'; }).length,
+      eq = both.filter(function (p) { return cheaper(p) === 'Equal'; }).length;
+  document.getElementById('sub').textContent = 'Outright prices only. Last checked ' + (data.last_checked || 'unknown') +
+    '. Tariff and installment prices are shown in each phone\'s details for reference.';
+  document.getElementById('summary').innerHTML =
+    stat(phones.length, 'A1 phones') + stat(both.length, 'also at Telekom') +
+    stat(a1c, 'cheaper at A1') + stat(tkc, 'cheaper at Telekom') +
+    (eq ? stat(eq, 'same price') : '') + stat(phones.length - both.length, 'only at A1');
+  function stat(n, l) { return '<div><b>' + n + '</b><span>' + l + '</span></div>'; }
+
+  // brand options
+  var brands = Array.from(new Set(phones.map(function (p) { return p.brand; }))).sort();
+  var sel = document.getElementById('brand');
+  brands.forEach(function (b) { var o = document.createElement('option'); o.value = o.textContent = b; sel.appendChild(o); });
+
+  function filtered() {
+    var q = state.q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    var out = phones.filter(function (p) {
+      var hay = (p.name + ' ' + (p.telekom && p.telekom.name || '')).toLowerCase();
+      if (q.some(function (w) { return hay.indexOf(w) < 0; })) return false;
+      if (state.brand && p.brand !== state.brand) return false;
+      if (state.show === 'both') return atTk(p);
+      if (state.show === 'a1only') return !atTk(p);
+      if (state.show !== 'all') return cheaper(p) === state.show;
+      return true;
+    });
+    var gap = function (p) { return p.comparison && p.comparison.outright_gap != null ? Math.abs(p.comparison.outright_gap) : -1; };
+    var a1 = function (p) { return p.a1.price_outright == null ? Infinity : p.a1.price_outright; };
+    var sorters = {
+      'name': function (a, b) { return a.name.localeCompare(b.name, undefined, { numeric: true }); },
+      'gap-desc': function (a, b) { return gap(b) - gap(a); },
+      'a1-asc': function (a, b) { return a1(a) - a1(b); },
+      'a1-desc': function (a, b) { return a1(b) - a1(a); }
+    };
+    return out.sort(sorters[state.sort]);
+  }
+
+  function diffCell(p) {
+    var c = p.comparison;
+    if (!c) return '<span class="badge plain">Not at Telekom</span>';
+    if (c.cheaper_at === 'Equal') return '<span class="badge plain">Same price</span>';
+    if (c.outright_gap == null) return '<span class="badge plain">No price</span>';
+    return '<span class="badge good">' + esc(c.cheaper_at) + ' cheaper by ' + Math.abs(c.outright_gap).toLocaleString('en-US') + '</span>';
+  }
+
+  function detail(p) {
+    var a = p.a1, t = p.telekom, h = '<div class="cols"><div><h3>A1</h3><dl>';
+    h += row('Outright', money(a.price_outright));
+    h += row('Installments total', money(a.price_installment_total));
+    if (a.promo && a.promo.tariff) h += row('Promo', esc(a.promo.tariff) + ', ' + esc(a.promo.payment) + ': ' + money(a.promo.monthly_price) + (/^0 /.test(a.promo.payment || '') ? '' : ' / month'));
+    if (a.promo_business && a.promo_business.tariff) h += row('Business promo', esc(a.promo_business.tariff) + ', ' + esc(a.promo_business.payment) + ': ' + money(a.promo_business.price));
+    if (p.colors && p.colors.length) h += row('Colors', esc(p.colors.join(', ')));
+    if (a.url) h += row('Link', '<a href="' + esc(a.url) + '" target="_blank" rel="noopener">View on a1.mk</a>');
+    h += '</dl></div><div><h3>Telekom</h3>';
+    if (!t || !t.available) {
+      h += '<p class="meta">' + esc(t && t.message || 'Not available at Telekom.') + '</p>';
+    } else {
+      h += '<dl>' + row('Listed as', esc(t.description || t.name));
+      h += row('Outright', money(t.price_outright));
+      h += row('With tariff', money(t.price_with_tariff) + (t.tariff ? ' <span class="meta">(' + esc(t.tariff) + ')</span>' : ''));
+      h += row('With tariff, business', money(t.price_with_tariff_business));
+      if (t.installment && t.installment.months) h += row('Installments', t.installment.months + ' × ' + money(t.installment.monthly_price));
+      var promos = (t.promo ? [t.promo] : []).concat(t.other_promos || []);
+      promos.forEach(function (pr, i) {
+        h += row(i ? '' : (promos.length > 1 ? 'Promos' : 'Promo'), esc(pr.name) + (pr.ends ? ' <span class="meta">until ' + esc(pr.ends.slice(0, 10)) + '</span>' : ''));
+      });
+      h += '</dl>';
+    }
+    h += '</div></div>';
+    if (p.comparison && p.comparison.note) h += '<p class="meta" style="margin:12px 0 0">' + esc(p.comparison.note) + '</p>';
+    return h;
+    function row(k, v) { return '<dt>' + k + '</dt><dd>' + v + '</dd>'; }
+  }
+
+  function render() {
+    var rows = filtered();
+    document.getElementById('count').textContent = rows.length + ' of ' + phones.length + ' phones';
+    if (!rows.length) {
+      list.innerHTML = '<div class="empty"><p>No phones match these filters.</p><button type="button" id="clear">Clear filters</button></div>';
+      document.getElementById('clear').onclick = clearFilters;
+      return;
+    }
+    var h = '<table><thead><tr><th>Phone</th><th class="num">A1</th><th class="num">Telekom</th><th>Difference</th><th><span class="visually-hidden" style="position:absolute;left:-9999px">Details</span></th></tr></thead><tbody>';
+    rows.forEach(function (p) {
+      var c = cheaper(p), open = !!state.open[p.id];
+      h += '<tr class="row" data-id="' + esc(p.id) + '">' +
+        '<td class="c-name"><div class="name">' + esc(p.name) + '</div><div class="meta">' + esc(p.brand) + (p.storage ? ' · ' + esc(p.storage) : '') + '</div></td>' +
+        '<td class="num' + (c === 'A1' ? ' win' : '') + '" data-label="A1">' + money(p.a1.price_outright) + '</td>' +
+        '<td class="num' + (c === 'Telekom' ? ' win' : '') + '" data-label="Telekom">' + (atTk(p) ? money(p.telekom.price_outright) : '–') + '</td>' +
+        '<td>' + diffCell(p) + '</td>' +
+        '<td class="c-toggle"><button type="button" class="toggle" aria-expanded="' + open + '" aria-controls="d-' + esc(p.id) + '">' + (open ? 'Hide' : 'Details') + '</button></td></tr>';
+      if (open) h += '<tr class="detail" id="d-' + esc(p.id) + '"><td colspan="5">' + detail(p) + '</td></tr>';
+    });
+    list.innerHTML = h + '</tbody></table>';
+  }
+
+  list.addEventListener('click', function (e) {
+    if (e.target.closest('a')) return;
+    var tr = e.target.closest('tr.row');
+    if (!tr) return;
+    var id = tr.getAttribute('data-id');
+    state.open[id] = !state.open[id];
+    render();
+    var btn = list.querySelector('tr.row[data-id="' + CSS.escape(id) + '"] .toggle');
+    if (btn) btn.focus();
+  });
+
+  function clearFilters() {
+    state.q = ''; state.brand = ''; state.show = 'all';
+    document.getElementById('q').value = ''; sel.value = '';
+    setShow('all'); render();
+  }
+  function setShow(v) {
+    state.show = v;
+    document.querySelectorAll('#show button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-v') === v)); });
+  }
+  document.getElementById('q').addEventListener('input', function (e) { state.q = e.target.value; render(); });
+  sel.addEventListener('change', function (e) { state.brand = e.target.value; render(); });
+  document.getElementById('sort').addEventListener('change', function (e) { state.sort = e.target.value; render(); });
+  document.getElementById('show').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (b) { setShow(b.getAttribute('data-v')); render(); }
+  });
+  render();
+})();
+</script>
+</body>
+</html>

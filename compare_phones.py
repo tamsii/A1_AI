@@ -593,6 +593,8 @@ def main(argv=None):
                     help="manual matches, telekom name -> match key (default: %(default)s)")
     ap.add_argument("--output", "-o", default="phones_a1_vs_telekom.json",
                     help="output file (default: %(default)s)")
+    ap.add_argument("--html", default=None,
+                    help="web page to write (default: output name with .html; 'none' to skip)")
     ap.add_argument("--currency", default="MKD", help="currency label (default: %(default)s)")
     ap.add_argument("--date", default=datetime.date.today().isoformat(),
                     help="value for last_checked (default: today)")
@@ -613,6 +615,11 @@ def main(argv=None):
     write_atomic(args.output, result)
     report(phones, a1_phones, tk_entries, tk_unmatched, excluded, total, log, warnings, args)
     print(f"\nWrote {len(phones)} phones to {args.output}")
+    html = args.html or os.path.splitext(args.output)[0] + ".html"
+    if html.lower() != "none":
+        from build_page import build_page
+        build_page(result, html)
+        print(f"Wrote web page {html} (open it in your browser)")
     return 0
 
 

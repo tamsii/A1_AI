@@ -111,6 +111,23 @@ The report warns about overrides that match no Telekom device, and about
 automatic matches that look doubtful. For example, Telekom says `5G` but A1
 does not, as in `Redmi 15C` vs `Redmi 15C 5G`.
 
+## Viewing the results
+
+Every run of `compare_phones.py` (and so `run_all.py`) also writes
+**`phones_a1_vs_telekom.html`**. Double-click it to open it in your browser.
+The data is embedded in the page, so it works offline with no server. On the
+page you can:
+
+- see a summary of how many phones are cheaper at A1, cheaper at Telekom, or only at A1;
+- search by name, filter by brand, and switch between All, A1 cheaper,
+  Telekom cheaper, At both and Only at A1;
+- sort by name, biggest difference or A1 price;
+- click a phone to see its tariff, installment and promo details, with a link to a1.mk.
+
+The page layout lives in `page_template.html`. Use `--html other.html` to
+choose a different file name, or `--html none` to skip the page. To rebuild the
+page from an existing JSON file: `python3 build_page.py phones_a1_vs_telekom.json`.
+
 ## Updating both shops in one go
 
 ```bash
