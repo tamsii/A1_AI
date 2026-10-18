@@ -1,13 +1,29 @@
 {
-  "_comment": "Copy the real request from the browser: DevTools > Network > the request that returns the devices > Copy as cURL. Put the URL, method, the headers it needs and the body here. Placeholders: {category}, {page}, {offset}, {size}.",
-  "url": "https://REPLACE-WITH-TELEKOM-HOST/api/GetCategoryDevices",
-  "method": "GET",
+  "_comment": "Telekom webshop API. Placeholders: {category}, {page}, {size}. MinPrice/MaxPrice are widened from the browser's 990/137990 so new cheaper or pricier devices are not filtered out.",
+  "url": "https://www.telekom.mk/api/webshop/getDevices",
+  "method": "POST",
   "category": "MKT00006",
-  "params": {"categoryId": "{category}", "page": "{page}", "pageSize": "{size}"},
-  "headers": {},
-  "body": null,
-  "paging": {"mode": "page", "start": 1, "size": 20},
+  "headers": {
+    "Origin": "https://www.telekom.mk",
+    "Referer": "https://www.telekom.mk/"
+  },
+  "body": {
+    "Page": "{page}",
+    "Size": "{size}",
+    "Paging": true,
+    "TotalItems": 0,
+    "CategoryId": "{category}",
+    "Manufacturers": [],
+    "Promotions": [],
+    "MinPrice": "0",
+    "MaxPrice": "9999999",
+    "SortTypeId": "0",
+    "PreselectedFilters": [],
+    "IsBusiness": false
+  },
+  "paging": {"mode": "page", "start": 1, "size": 500},
   "devices_path": "devices",
   "total_path": "total",
-  "id_field": "Id"
+  "id_field": "Id",
+  "categories_url": "https://www.telekom.mk/api/webshop/GetAllCategories"
 }

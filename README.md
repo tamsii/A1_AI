@@ -118,11 +118,23 @@ pages, and writes `telekom_devices.json` in the same shape as the API response.
 Then run the comparison as usual:
 
 ```bash
-python3 fetch_telekom.py              # uses telekom_api.json, writes telekom_devices.json
+python3 fetch_telekom.py --list-categories   # show category IDs (GetAllCategories)
+python3 fetch_telekom.py                     # phones (MKT00006) -> telekom_devices.json
 python3 compare_phones.py
 ```
 
-### 1. Find the real request
+`telekom_api.json` is already set up for the Telekom webshop API: it POSTs to
+`https://www.telekom.mk/api/webshop/getDevices` with the same body as the
+website, asking for 500 devices per page. Category IDs come from
+`https://www.telekom.mk/api/webshop/GetAllCategories`. Use `--category ID`
+to download a different category. The browser sends `MinPrice` 990 and
+`MaxPrice` 137990 (the current price range). The config widens these to 0 and
+9999999 so that new devices outside that range are not dropped. If the API
+returns 0 devices with the wide range, put the browser's values back.
+
+The sections below explain how to point the fetcher at a different API.
+
+### 1. Find the request
 
 1. Open the Telekom webshop phones page in Chrome/Firefox and open DevTools (F12) → **Network** → filter **Fetch/XHR**.
 2. Reload the page (and click "next page" / "load more" if there is one).

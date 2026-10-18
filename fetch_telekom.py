@@ -138,11 +138,46 @@ def fetch_all(cfg, category, timeout, retries, delay, max_pages, log=print):
     else:
         raise FetchError(f"Stopped after --max-pages={max_pages}; raise it if this is expected")
 
+    if not devices:
+        raise FetchError("The API returned 0 devices. Check the category ID and the filters "
+                         "in the request body (e.g. MinPrice/MaxPrice).")
     if total is not None and len(devices) != total:
         raise FetchError(f"API says total={total} but {len(devices)} unique devices were "
                          f"downloaded. Check the paging settings in the config.")
     return {"devices": devices, "category": category_info,
             "total": total if total is not None else len(devices)}
+
+
+def find_categories(obj, depth=0, out=None):
+    """Collect (depth, id, name) for every object that looks like a category."""
+    out = [] if out is None else out
+    if isinstance(obj, list):
+        for x in obj:
+            find_categories(x, depth, out)
+    elif isinstance(obj, dict):
+        cid = obj.get("ExternalId") or obj.get("Id")
+        name = obj.get("Name") or obj.get("TitleMk") or obj.get("Title")
+        is_cat = cid is not None and name
+        if is_cat:
+            out.append((depth, cid, name, obj.get("TitleEn") or ""))
+        for k, v in obj.items():
+            if isinstance(v, (list, dict)) and k not in ("DeliveryTypes",):
+                find_categories(v, depth + 1 if is_cat else depth, out)
+    return out
+
+
+def list_categories(cfg, timeout, retries):
+    url = cfg.get("categories_url")
+    if not url:
+        raise FetchError("No 'categories_url' in the config")
+    data = request_page({"url": url, "method": "GET", "headers": cfg.get("headers")},
+                        {}, timeout, retries)
+    cats = find_categories(data)
+    if not cats:
+        raise FetchError(f"No categories found in the response from {url}")
+    print(f"{'Category ID':<14} Name")
+    for depth, cid, name, en in cats:
+        print(f"{str(cid):<14} {'  ' * depth}{name}" + (f"  ({en})" if en and en != name else ""))
 
 
 def write_atomic(path, obj):
@@ -169,7 +204,18 @@ def main(argv=None):
     ap.add_argument("--retries", type=int, default=3, help="retries per page on network/5xx errors")
     ap.add_argument("--delay", type=float, default=0.5, help="seconds between pages")
     ap.add_argument("--max-pages", type=int, default=100, help="safety limit")
+    ap.add_argument("--list-categories", action="store_true",
+                    help="print the category IDs from categories_url and exit")
     args = ap.parse_args(argv)
+
+    if args.list_categories:
+        try:
+            with open(args.config, encoding="utf-8") as f:
+                list_categories(json.load(f), args.timeout, args.retries)
+        except (OSError, json.JSONDecodeError, FetchError) as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            return 1
+        return 0
 
     try:
         with open(args.config, encoding="utf-8") as f:
