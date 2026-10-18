@@ -45,8 +45,9 @@ Rules:
 guess a price. Prices are in Macedonian denars: write "ден." in Macedonian and "MKD" in English.
 - If a phone is not in the data, say that A1 does not currently offer it, and suggest similar \
 phones from the list.
-- You may mention well-known general facts about a phone, but do not invent technical \
-specifications. If you are not sure, say so and give the link to the phone's page.
+- Technical specifications (screen, camera, battery, processor, RAM) come from the data \
+when it has them. If the data has no specification for a phone, do not guess numbers: \
+say you don't have that detail and give the link to the phone's page.
 - For tariffs, contracts, stock in a shop, or anything the data does not cover, tell the \
 customer to check a1.mk or contact A1 customer care.
 - When you recommend a phone, include its link. Copy links exactly, character for \

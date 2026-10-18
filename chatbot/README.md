@@ -23,6 +23,7 @@ Files:
 | File | What it does |
 |---|---|
 | `server.py` | The chat server. Python 3.8+, standard library only. |
+| `specs.py` | Creates or updates `phone_specs.csv`, the specs table you fill in. |
 | `catalog.py` | Finds phones in a question ("галакси А57", "iphone 17 pro max", "Samsung до 20.000 ден") and formats their data. |
 | `widget.js` | The chat bubble. One `<script>` tag adds it to any page. |
 | `index.html` | A test page for the bubble. |
@@ -95,6 +96,21 @@ To make it faster:
 - Try a smaller model: `python3 chatbot/server.py --model qwen3:4b` (or `gemma3:4b`).
 - Close other heavy programs. The model needs free memory.
 - The first question after starting is slower. Later questions reuse what Ollama has already read.
+
+## Phone specifications
+
+`phone_specs.csv` (in the project folder) holds the specs the bot uses:
+screen, camera, battery, processor (`chip`), RAM and `other`. There is one
+row per phone model; storage sizes and bundles of the same model share a row.
+
+1. Open `phone_specs.csv` in Excel or Google Sheets.
+2. Fill in the cells you know. Empty cells are fine: the bot then says it
+   doesn't have that detail instead of guessing. Leave the `model` column as it is.
+3. Save as CSV (in Excel: "CSV UTF-8").
+
+The server picks up the changes on the next question, with no restart needed. When
+A1 adds new phones (after `fetch_a1.py`), run `python3 chatbot/specs.py` to add
+rows for them. Everything already filled in is kept.
 
 ## 3. Compare models
 

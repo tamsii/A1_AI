@@ -5,6 +5,7 @@ Standard library only. Phones are grouped by name with compare_phones.parse_a1,
 so colours/SKUs of one model are one entry, as on the comparison page.
 """
 
+import csv
 import os
 import re
 import sys
@@ -14,6 +15,11 @@ import compare_phones  # noqa: E402
 
 EUR_TO_MKD = 61.5
 PHONES_PAGE = "https://www.a1.mk/webshop/mk/phones"
+
+# Columns of phone_specs.csv (see specs.py), with the label the model sees.
+SPEC_COLUMNS = ["screen", "camera", "battery", "chip", "ram", "other"]
+SPEC_LABELS = {"screen": "Screen", "camera": "Camera", "battery": "Battery",
+               "chip": "Processor", "ram": "RAM", "other": "Other"}
 
 # Cyrillic or colloquial spellings -> the words used in A1 names. Checked
 # before the letter-by-letter transliteration below ("ајфон" is not "ajfon").
@@ -97,6 +103,34 @@ def price_limits(question):
     return tuple(limits)
 
 
+def model_key(phone):
+    """One key per model, without storage, colour or bundle:
+    "Galaxy S26 5G 512" -> "samsung|s26"."""
+    key = compare_phones.build_key(phone["brand"], phone["model_text"], None, [],
+                                   compare_phones.COMMON_COLORS)
+    return key.rstrip("|")
+
+
+def read_specs(path):
+    """phone_specs.csv -> {model key: {column: text}}. Accepts what Excel
+    saves: ; or , between columns, UTF-8 or Windows Cyrillic text."""
+    raw = open(path, "rb").read()
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = raw.decode("cp1251")
+    lines = text.splitlines()
+    if lines and lines[0].lower().startswith("sep="):
+        lines = lines[1:]
+    delimiter = ";" if lines and lines[0].count(";") >= lines[0].count(",") else ","
+    specs = {}
+    for row in csv.DictReader(lines, delimiter=delimiter):
+        row = {(k or "").strip().lower(): (v or "").strip() for k, v in row.items()}
+        if row.get("model"):
+            specs[row["model"]] = {c: row.get(c, "") for c in SPEC_COLUMNS}
+    return specs
+
+
 def slug_key(url):
     """The product name part of an A1 link, letters and digits only:
     .../samsung-galaxy-s26+-5g-256/1000064140 -> samsunggalaxys265g256"""
@@ -111,15 +145,23 @@ def fmt_mkd(n):
 class Catalog:
     def __init__(self, path):
         self.path = path
+        self.specs_path = os.path.join(os.path.dirname(os.path.abspath(path)), "phone_specs.csv")
         self.mtime = None
         self.phones = []
         self.reload_if_changed()
 
     def reload_if_changed(self):
-        """Re-read the file when it changes, so a new fetch_a1.py run is picked up."""
-        mtime = os.path.getmtime(self.path)
+        """Re-read the files when they change, so a new fetch_a1.py run or an
+        edited phone_specs.csv is picked up without a restart."""
+        specs_mtime = os.path.getmtime(self.specs_path) if os.path.exists(self.specs_path) else None
+        mtime = (os.path.getmtime(self.path), specs_mtime)
         if mtime == self.mtime:
             return
+        try:
+            specs = read_specs(self.specs_path) if specs_mtime else {}
+        except (OSError, csv.Error, UnicodeDecodeError) as e:
+            print(f"WARNING: could not read {self.specs_path}: {e}", file=sys.stderr)
+            specs = {}
         data = compare_phones.load_json(self.path)
         phones = compare_phones.parse_a1(data, [])
         # Every real product link, by its SKU number and by its name part, to
@@ -133,13 +175,15 @@ class Catalog:
             p["title"] = p["name"] if p["name"].lower().startswith(p["brand"].lower()) \
                 else f"{p['brand']} {p['name']}"
             p["tokens"] = tokens(p["title"]) | {p["brand"].lower()}
+            p["model_key"] = model_key(p)
+            p["specs"] = {k: v for k, v in specs.get(p["model_key"], {}).items() if v}
         self.phones = [p for p in phones if p["available"]]
         self.mtime = mtime
 
     @property
     def updated(self):
         import datetime
-        return datetime.date.fromtimestamp(self.mtime).isoformat()
+        return datetime.date.fromtimestamp(self.mtime[0]).isoformat()
 
     def fix_link(self, url):
         """A link from the model's answer, made safe: a real A1 product link
@@ -160,7 +204,10 @@ class Catalog:
     def overview(self):
         """One line per phone, sorted by brand then price, for the system prompt."""
         rows = sorted(self.phones, key=lambda p: (p["brand"], p["price_outright"] or 0))
-        return "\n".join(f"- {p['title']}: {fmt_mkd(p['price_outright'])}" for p in rows)
+        def line(p):
+            short = "; ".join(p["specs"][c] for c in ("camera", "battery", "screen") if c in p["specs"])
+            return f"- {p['title']}: {fmt_mkd(p['price_outright'])}" + (f" ({short})" if short else "")
+        return "\n".join(map(line, rows))
 
     def search(self, question, limit=5):
         """Phones the question is about, best match first."""
@@ -221,6 +268,9 @@ class Catalog:
             lines.append(f"- Storage: {p['storage']}")
         if p["bundle"]:
             lines.append(f"- Comes bundled with: {', '.join(p['bundle'])}")
+        for c in SPEC_COLUMNS:
+            if c in p["specs"]:
+                lines.append(f"- {SPEC_LABELS[c]}: {p['specs'][c]}")
         if p["colors"]:
             lines.append(f"- Colours: {', '.join(dict.fromkeys(p['colors']))}")
         if p["url"]:
