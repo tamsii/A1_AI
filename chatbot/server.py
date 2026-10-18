@@ -165,6 +165,17 @@ class Assistant:
                 *history[:-1],
                 {"role": "user", "content": question}], phones
 
+    def unload(self):
+        """Free the model's memory in Ollama now instead of after keep_alive."""
+        if self.backend != "ollama":
+            return
+        try:
+            with self.post(self.ollama_root + "/api/chat",
+                           {"model": self.model, "messages": [], "keep_alive": 0}) as r:
+                r.read()
+        except OSError:
+            pass
+
     def stream(self, history):
         """Yield the reply text piece by piece."""
         messages, _ = self.build_messages(history)

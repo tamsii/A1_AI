@@ -70,6 +70,7 @@ def main(argv=None):
                 answer, first, total = f"ERROR: {e}", 0.0, 0.0
             print(f"({total:.1f}s)")
             results.setdefault(q, []).append((model, answer, first, total))
+        assistant.unload()  # two models in memory at once would slow both down
 
     lines = [f"# Model test: {', '.join(args.models)}", "",
              f"Data: {args.data} ({catalog.updated}), server: {args.llm_url}", "",
