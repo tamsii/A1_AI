@@ -111,6 +111,22 @@ The report warns about overrides that match no Telekom device, and about
 automatic matches that look doubtful. For example, Telekom says `5G` but A1
 does not, as in `Redmi 15C` vs `Redmi 15C 5G`.
 
+## Updating both shops in one go
+
+```bash
+python3 run_all.py            # fetch_a1.py + fetch_telekom.py + compare_phones.py
+```
+
+`run_all.py` runs three steps in order:
+1. `fetch_a1.py` downloads A1's phone list (`GetCategoryProducts-Fetch?CatalogID=Phones`)
+   to `a1_devices.json`.
+2. `fetch_telekom.py` downloads Telekom's phones to `telekom_devices.json`.
+3. `compare_phones.py` builds the comparison.
+
+It stops at the first step that fails, and the files from the last good run
+stay as they were. Any extra arguments go to `compare_phones.py`, e.g.
+`python3 run_all.py --currency MKD`. Each script can also be run on its own.
+
 ## Fetching Telekom from the API
 
 `fetch_telekom.py` downloads every device in a Telekom category, following all
