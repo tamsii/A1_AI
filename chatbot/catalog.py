@@ -130,7 +130,7 @@ class Catalog:
         rows = sorted(self.phones, key=lambda p: (p["brand"], p["price_outright"] or 0))
         return "\n".join(f"- {p['title']}: {fmt_mkd(p['price_outright'])}" for p in rows)
 
-    def search(self, question, limit=8):
+    def search(self, question, limit=5):
         """Phones the question is about, best match first."""
         # Prices are not model numbers: "до 15.000" must not match "Redmi 15".
         no_prices = re.sub(r"\d+(?:[.,\s]\d{3})+|\d{4,}|\d+\s*(?:k|к)\b", " ", question.lower())

@@ -72,11 +72,28 @@ Options:
 | `--data PATH` | `../a1_devices.json` | The A1 phone list |
 | `--allow-origin URL` | none | Your site's address, if the chat server runs on a different domain (e.g. `https://www.mysite.mk`) |
 | `--parallel N` | `2` | How many questions go to the model at once. Others wait up to a minute. |
+| `--backend` | `auto` | `ollama` (Ollama's own API) or `openai` (any OpenAI-compatible server). `auto` picks `ollama` when the URL uses port 11434. |
+| `--num-ctx N` | `8192` | How much text Ollama can read at once |
 | `--max-tokens N` | `600` | Longest answer |
 | `--temperature T` | `0.3` | Lower is more predictable |
 
 If the model needs an API key (a hosted service), put it in the environment
 variable `LLM_API_KEY`. It is never sent to the browser.
+
+### If answers are slow
+
+Most of the wait is the model *reading* the prompt before it writes the
+first word, and on a computer without a graphics card that is slow. The server
+already keeps the prompt short: it sends only the phones a question names, and
+the full list only when the question names no phone. It also switches off
+Qwen3's "thinking" step and loads the model as soon as it starts. The server
+window shows `first word after Xs` for every question.
+
+To make it faster:
+- Run `ollama ps` while it answers. `100% CPU` means no graphics card is used.
+- Try a smaller model: `python3 chatbot/server.py --model qwen3:4b` (or `gemma3:4b`).
+- Close other heavy programs. The model needs free memory.
+- The first question after starting is slower. Later questions reuse what Ollama has already read.
 
 ## 3. Compare models
 

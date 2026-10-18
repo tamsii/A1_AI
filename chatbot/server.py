@@ -31,7 +31,7 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/widget.js": ("widget.js", "text/javascript; charset=utf-8")}
 
 MAX_BODY = 32 * 1024
-MAX_MESSAGES = 12        # earlier turns are dropped
+MAX_MESSAGES = 8         # earlier turns are dropped
 MAX_MESSAGE_CHARS = 1500
 
 SYSTEM_PROMPT = """You are the phone assistant on the A1 Macedonia website (a1.mk). You help \
@@ -51,8 +51,7 @@ customer to check a1.mk or contact A1 customer care.
 - Keep answers short and friendly. Use a short list when comparing phones.
 - Only talk about A1 phones and offers. Politely decline other requests.
 
-All phones A1 currently sells, with the full price (data from {updated}):
-{overview}"""
+Each customer message comes with the A1 data for it (prices from {updated})."""
 
 CONTEXT_PROMPT = """[A1 data for this question]
 {details}
@@ -60,8 +59,11 @@ CONTEXT_PROMPT = """[A1 data for this question]
 [Customer's message]
 {question}"""
 
-NO_MATCH_DETAILS = """No phone in the A1 data matches this message by name. Answer from \
-the full list, or ask which phone or budget the customer has in mind."""
+NO_MATCH_DETAILS = """No phone matches this message by name. All phones A1 sells, with \
+the full price:
+{overview}
+
+Answer from this list, or ask which phone or budget the customer has in mind."""
 
 
 class ThinkFilter:
@@ -98,31 +100,64 @@ class ThinkFilter:
 
 class Assistant:
     def __init__(self, catalog, llm_url, model, api_key=None, temperature=0.3,
-                 max_tokens=600, timeout=300):
+                 max_tokens=600, timeout=300, backend="auto", num_ctx=8192):
         self.catalog = catalog
-        self.llm_url = llm_url.rstrip("/") + "/chat/completions"
+        self.llm_url = llm_url.rstrip("/")
         self.model = model
         self.api_key = api_key
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.timeout = timeout
+        self.num_ctx = num_ctx
+        if backend == "auto":
+            backend = "ollama" if ":11434" in self.llm_url else "openai"
+        self.backend = backend
         self.lock = threading.Lock()
 
+    @property
+    def ollama_root(self):
+        return re.sub(r"/v1$", "", self.llm_url)
+
+    def post(self, url, payload):
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        req = urllib.request.Request(url, data=json.dumps(payload).encode(),
+                                     headers=headers, method="POST")
+        return urllib.request.urlopen(req, timeout=self.timeout)
+
+    def warm_up(self):
+        """Load the model into memory now, so the first visitor doesn't wait for it."""
+        if self.backend != "ollama":
+            return
+        started = time.time()
+        try:
+            with self.post(self.ollama_root + "/api/chat",
+                           {"model": self.model, "messages": [], "keep_alive": "30m"}) as r:
+                r.read()
+            print(f"Model {self.model} loaded in {time.time() - started:.0f}s")
+        except urllib.error.HTTPError as e:
+            hint = f" Run: ollama pull {self.model}" if e.code == 404 else ""
+            print(f"WARNING: could not load {self.model}: {e}.{hint}", file=sys.stderr)
+        except OSError as e:
+            print(f"WARNING: Ollama is not reachable at {self.ollama_root} ({e}). "
+                  f"Is Ollama running?", file=sys.stderr)
+
     def build_messages(self, history):
-        """System prompt (the same every time, so the model server can reuse its
-        cache of it) + the chat, with the matched phones in the last turn."""
+        """Short system prompt + the chat, with the matched phones in the last
+        turn. Every word the model has to read costs time on a CPU, so only the
+        phones the question is about are sent, and the full list only when the
+        question names none."""
         with self.lock:
             self.catalog.reload_if_changed()
-            system = SYSTEM_PROMPT.format(updated=self.catalog.updated,
-                                          overview=self.catalog.overview())
+            system = SYSTEM_PROMPT.format(updated=self.catalog.updated)
             user_turns = [m["content"] for m in history if m["role"] == "user"]
             # A follow-up like "and in 512GB?" names no phone; use the turn before.
             phones = self.catalog.search(user_turns[-1])
             if not phones and len(user_turns) > 1:
                 phones = self.catalog.search(user_turns[-2] + " " + user_turns[-1])
-            details = "\n\n".join(map(Catalog.details, phones)) if phones else NO_MATCH_DETAILS
-        if "qwen3" in self.model.lower():
-            system += "\n/no_think"  # Qwen3 would otherwise reason for a long time first
+            details = ("\n\n".join(map(Catalog.details, phones)) if phones
+                       else NO_MATCH_DETAILS.format(overview=self.catalog.overview()))
         # The phone details go in the last user turn, not a second system
         # message: some chat templates (Gemma) only allow one, at the start.
         question = CONTEXT_PROMPT.format(details=details, question=history[-1]["content"])
@@ -133,15 +168,54 @@ class Assistant:
     def stream(self, history):
         """Yield the reply text piece by piece."""
         messages, _ = self.build_messages(history)
-        body = json.dumps({"model": self.model, "messages": messages, "stream": True,
-                           "temperature": self.temperature,
-                           "max_tokens": self.max_tokens}).encode()
-        headers = {"Content-Type": "application/json"}
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
-        req = urllib.request.Request(self.llm_url, data=body, headers=headers, method="POST")
         think = ThinkFilter()
-        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+        chunks = self.stream_ollama(messages) if self.backend == "ollama" \
+            else self.stream_openai(messages)
+        for text in chunks:
+            text = think.feed(text)
+            if text:
+                yield text
+        rest = think.flush()
+        if rest:
+            yield rest
+
+    def stream_ollama(self, messages):
+        """Ollama's own /api/chat: lets us switch thinking off for real, set the
+        context size (Ollama's default is small and cuts long prompts), and keep
+        the model loaded between questions."""
+        payload = {"model": self.model, "messages": messages, "stream": True,
+                   "think": False, "keep_alive": "30m",
+                   "options": {"temperature": self.temperature, "num_predict": self.max_tokens,
+                               "num_ctx": self.num_ctx}}
+        try:
+            resp = self.post(self.ollama_root + "/api/chat", payload)
+        except urllib.error.HTTPError as e:
+            if e.code != 400:
+                raise
+            del payload["think"]  # older Ollama, or a model without a thinking switch
+            resp = self.post(self.ollama_root + "/api/chat", payload)
+        with resp:
+            for raw in resp:
+                try:
+                    obj = json.loads(raw)
+                except ValueError:
+                    continue
+                if obj.get("error"):
+                    raise OSError(f"Ollama: {obj['error']}")
+                text = (obj.get("message") or {}).get("content") or ""
+                if text:
+                    yield text
+                if obj.get("done"):
+                    break
+
+    def stream_openai(self, messages):
+        """Any OpenAI-compatible server (llama.cpp, vLLM, hosted providers)."""
+        if "qwen3" in self.model.lower():
+            messages = [{**messages[0], "content": messages[0]["content"] + "\n/no_think"},
+                        *messages[1:]]  # Qwen3 would otherwise reason for a long time first
+        payload = {"model": self.model, "messages": messages, "stream": True,
+                   "temperature": self.temperature, "max_tokens": self.max_tokens}
+        with self.post(self.llm_url + "/chat/completions", payload) as resp:
             for raw in resp:
                 line = raw.decode("utf-8", "replace").strip()
                 if not line.startswith("data:"):
@@ -156,12 +230,7 @@ class Assistant:
                 # Only "content"; "reasoning"/"reasoning_content" is the model thinking.
                 text = (choice.get("delta") or {}).get("content") or ""
                 if text:
-                    text = think.feed(text)
-                    if text:
-                        yield text
-        rest = think.flush()
-        if rest:
-            yield rest
+                    yield text
 
 
 def clean_history(payload):
@@ -244,6 +313,7 @@ def make_handler(assistant, allow_origin, slots):
                 chunks = assistant.stream(history)
                 try:
                     first = next(chunks, "")  # connect before sending 200
+                    first_at = time.time() - started
                 except (urllib.error.URLError, OSError) as e:
                     self.log_error("model server error: %s", e)
                     return self.error(502, "model server unavailable")
@@ -259,7 +329,8 @@ def make_handler(assistant, allow_origin, slots):
                         self.wfile.flush()
                 except (urllib.error.URLError, OSError) as e:
                     self.log_error("stream stopped: %s", e)
-                self.log_message("answered in %.1fs", time.time() - started)
+                self.log_message("first word after %.1fs, answer done after %.1fs",
+                                 first_at, time.time() - started)
             finally:
                 slots.release()
 
@@ -289,17 +360,24 @@ def main(argv=None):
                     help="site allowed to call the API from the browser, e.g. https://www.example.mk")
     ap.add_argument("--parallel", type=int, default=2,
                     help="questions sent to the model at the same time (default: %(default)s)")
+    ap.add_argument("--backend", choices=("auto", "ollama", "openai"), default="auto",
+                    help="API style: Ollama's own, or OpenAI-compatible "
+                         "(default: ollama when the URL uses port 11434)")
+    ap.add_argument("--num-ctx", type=int, default=8192,
+                    help="Ollama context size in tokens (default: %(default)s)")
     ap.add_argument("--max-tokens", type=int, default=600)
     ap.add_argument("--temperature", type=float, default=0.3)
     args = ap.parse_args(argv)
 
     catalog = Catalog(args.data)
     assistant = Assistant(catalog, args.llm_url, args.model, os.environ.get(args.api_key_env),
-                          args.temperature, args.max_tokens)
+                          args.temperature, args.max_tokens, backend=args.backend,
+                          num_ctx=args.num_ctx)
+    threading.Thread(target=assistant.warm_up, daemon=True).start()
     handler = make_handler(assistant, args.allow_origin, threading.BoundedSemaphore(args.parallel))
     server = ThreadingHTTPServer((args.host, args.port), handler)
     print(f"{len(catalog.phones)} phones loaded from {args.data}")
-    print(f"Model {args.model} at {args.llm_url}")
+    print(f"Model {args.model} at {args.llm_url} ({assistant.backend} API)")
     print(f"Chat page: http://{'localhost' if args.host in ('0.0.0.0', '127.0.0.1') else args.host}:{args.port}/")
     try:
         server.serve_forever()

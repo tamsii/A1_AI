@@ -61,6 +61,7 @@ def main(argv=None):
     for model in args.models:
         assistant = Assistant(catalog, args.llm_url, model, os.environ.get("LLM_API_KEY"))
         print(f"== {model}")
+        assistant.warm_up()  # so loading the model isn't counted in the first answer
         for q in questions:
             print(f"  {q}", end=" ", flush=True)
             try:
