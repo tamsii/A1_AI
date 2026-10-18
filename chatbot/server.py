@@ -15,12 +15,14 @@ Run with --help for all options.
 
 import argparse
 import json
+import mimetypes
 import os
 import re
 import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -265,7 +267,35 @@ def clean_history(payload):
     return out
 
 
-def make_handler(assistant, allow_origin, slots):
+WIDGET_TAG = b'<script src="/widget.js" defer></script>'
+
+
+def add_widget(html):
+    """Put the chat bubble's script tag before </body>."""
+    i = html.lower().rfind(b"</body>")
+    return html[:i] + WIDGET_TAG + html[i:] if i >= 0 else html + WIDGET_TAG
+
+
+class Site:
+    """A web page saved from the browser (File > Save as, "Webpage, Complete"),
+    shown at / with the chat bubble added, for trying the bot on a real page.
+    Its "..._files" folder is served next to it."""
+
+    def __init__(self, page):
+        self.page = os.path.abspath(page)
+        self.root = os.path.dirname(self.page)
+
+    def file(self, url_path):
+        """(path on disk, is the main page) for a URL path, or None."""
+        if url_path in ("/", "/index.html"):
+            return self.page, True
+        path = os.path.abspath(os.path.join(self.root, urllib.parse.unquote(url_path).lstrip("/")))
+        if os.path.commonpath([path, self.root]) != self.root or not os.path.isfile(path):
+            return None
+        return path, path == self.page
+
+
+def make_handler(assistant, allow_origin, slots, site=None):
     class Handler(BaseHTTPRequestHandler):
         server_version = "A1Chat/1.0"
 
@@ -299,10 +329,19 @@ def make_handler(assistant, allow_origin, slots):
                 self.reply(200, json.dumps({"ok": True, "model": assistant.model,
                                             "phones": len(assistant.catalog.phones),
                                             "data_date": assistant.catalog.updated}))
-            elif path in STATIC:
+            elif path == "/widget.js" or (path in STATIC and not site):
                 name, ctype = STATIC[path]
                 with open(os.path.join(HERE, name), "rb") as f:
                     self.reply(200, f.read(), ctype)
+            elif site and site.file(path):
+                file, is_page = site.file(path)
+                with open(file, "rb") as f:
+                    data = f.read()
+                if is_page:
+                    self.reply(200, add_widget(data), "text/html; charset=utf-8")
+                else:
+                    name = file[:-len(".download")] if file.endswith(".download") else file
+                    self.reply(200, data, mimetypes.guess_type(name)[0] or "application/octet-stream")
             else:
                 self.error(404, "not found")
 
@@ -369,6 +408,9 @@ def main(argv=None):
                     help="environment variable holding the API key, if the server needs one")
     ap.add_argument("--allow-origin", default=None,
                     help="site allowed to call the API from the browser, e.g. https://www.example.mk")
+    ap.add_argument("--site", metavar="PAGE.html",
+                    help="show this saved web page at / with the chat bubble on it "
+                         "(for trying the bot on your site; its _files folder is served too)")
     ap.add_argument("--parallel", type=int, default=2,
                     help="questions sent to the model at the same time (default: %(default)s)")
     ap.add_argument("--backend", choices=("auto", "ollama", "openai"), default="auto",
@@ -385,10 +427,19 @@ def main(argv=None):
                           args.temperature, args.max_tokens, backend=args.backend,
                           num_ctx=args.num_ctx)
     threading.Thread(target=assistant.warm_up, daemon=True).start()
-    handler = make_handler(assistant, args.allow_origin, threading.BoundedSemaphore(args.parallel))
+    site = None
+    if args.site:
+        if not os.path.isfile(args.site):
+            print(f"ERROR: {args.site} not found", file=sys.stderr)
+            return 1
+        site = Site(args.site)
+    handler = make_handler(assistant, args.allow_origin, threading.BoundedSemaphore(args.parallel),
+                           site)
     server = ThreadingHTTPServer((args.host, args.port), handler)
     print(f"{len(catalog.phones)} phones loaded from {args.data}")
     print(f"Model {args.model} at {args.llm_url} ({assistant.backend} API)")
+    if site:
+        print(f"Showing {site.page} with the chat bubble")
     print(f"Chat page: http://{'localhost' if args.host in ('0.0.0.0', '127.0.0.1') else args.host}:{args.port}/")
     try:
         server.serve_forever()

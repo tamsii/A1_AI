@@ -71,6 +71,7 @@ Options:
 | `--host ADDR` | `127.0.0.1` | Use `0.0.0.0` to accept connections from other computers |
 | `--data PATH` | `../a1_devices.json` | The A1 phone list |
 | `--allow-origin URL` | none | Your site's address, if the chat server runs on a different domain (e.g. `https://www.mysite.mk`) |
+| `--site PAGE.html` | none | Show a saved web page at `/` with the chat bubble on it (see below) |
 | `--parallel N` | `2` | How many questions go to the model at once. Others wait up to a minute. |
 | `--backend` | `auto` | `ollama` (Ollama's own API) or `openai` (any OpenAI-compatible server). `auto` picks `ollama` when the URL uses port 11434. |
 | `--num-ctx N` | `8192` | How much text Ollama can read at once |
@@ -107,6 +108,20 @@ sell and an off-topic request) and writes `model_test_results.md` with every
 answer and how long it took. Check: are the prices right? Is the Macedonian
 natural? Does it refuse the off-topic question? Use `-q "your question"` to ask
 your own questions instead.
+
+### Try it on a saved copy of your site
+
+To see the bubble on a real page before it goes live, save the page in your
+browser (Ctrl+S, "Webpage, Complete") into a `site` folder in this project.
+That gives `site/<name>.html` and a `site/<name>_files` folder. Then:
+
+```bash
+python3 chatbot/server.py --site "site/<name>.html"
+```
+
+Open <http://localhost:8000> to see the page with the chat bubble added. This
+is only for your own computer. The `site/` folder is in `.gitignore`, so the
+saved page is never committed. Don't publish a copy of a site you don't own.
 
 ## 4. Put it on your website
 
