@@ -10,6 +10,7 @@ import json
 import os
 import re
 import sys
+import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import compare_phones  # noqa: E402
@@ -132,6 +133,13 @@ def read_specs(path):
     return specs
 
 
+def clean_url(url):
+    """Percent-encode characters a browser would encode itself. A1's data has
+    a non-breaking space in some links ("xiaomi-redmi\\xa0note-14-pro+..."),
+    which breaks both fetching the page and turning the link into a link."""
+    return urllib.parse.quote(url.strip(), safe=":/?#[]@!$&'()*+,;=%-._~")
+
+
 def slug_key(url):
     """The product name part of an A1 link, letters and digits only:
     .../samsung-galaxy-s26+-5g-256/1000064140 -> samsunggalaxys265g256"""
@@ -178,7 +186,7 @@ class Catalog:
         # Every real product link, by its SKU number and by its name part, to
         # correct links the model rewrites or makes up (see fix_link).
         items = data.values() if isinstance(data, dict) else data
-        urls = [v["deviceUrl"] for v in items if isinstance(v, dict) and v.get("deviceUrl")]
+        urls = [clean_url(v["deviceUrl"]) for v in items if isinstance(v, dict) and v.get("deviceUrl")]
         self.links = set(urls) | {PHONES_PAGE, "https://www.a1.mk", "https://www.a1.mk/"}
         self.by_sku = {u.rstrip("/").rsplit("/", 1)[-1]: u for u in urls}
         self.by_slug = {slug_key(u): u for u in urls}
@@ -187,6 +195,7 @@ class Catalog:
                 else f"{p['brand']} {p['name']}"
             p["tokens"] = tokens(p["title"]) | {p["brand"].lower()}
             p["model_key"] = model_key(p)
+            p["url"] = clean_url(p["url"]) if p["url"] else p["url"]
             p["specs"] = {k: v for k, v in specs.get(p["model_key"], {}).items() if v}
             page = page_details.get(p["name"]) or {}
             p["page_fields"] = page.get("fields") or {}

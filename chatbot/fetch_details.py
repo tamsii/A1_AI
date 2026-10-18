@@ -27,7 +27,7 @@ import urllib.error
 import urllib.request
 from html.parser import HTMLParser
 
-from catalog import Catalog
+from catalog import Catalog, clean_url
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fetch_telekom import write_atomic  # noqa: E402
@@ -136,7 +136,7 @@ def parse_page(html):
 def get(url, timeout=30, retries=2):
     for attempt in range(retries + 1):
         try:
-            req = urllib.request.Request(url, headers=HEADERS)
+            req = urllib.request.Request(clean_url(url), headers=HEADERS)
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 return resp.read().decode(resp.headers.get_content_charset() or "utf-8", "replace")
         except urllib.error.HTTPError as e:
@@ -193,7 +193,7 @@ def main(argv=None):
         print(f"[{n}/{len(phones)}] {p['title']} ...", end=" ", flush=True)
         try:
             result = parse_page(get(p["url"]))
-        except (urllib.error.URLError, OSError) as e:
+        except Exception as e:  # one bad page must not stop the other phones
             print(f"failed: {e}")
             failed += 1
             continue
