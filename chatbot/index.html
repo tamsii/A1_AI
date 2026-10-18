@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="mk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A1 Phone Assistant – demo</title>
+<style>
+  body{margin:0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#f6f6f7;color:#1a1a1a}
+  main{max-width:720px;margin:0 auto;padding:40px 16px}
+  h1{margin-top:0}
+  code{background:#e9e9ec;padding:2px 5px;border-radius:4px;font-size:14px}
+  pre{background:#1e1e1e;color:#eee;padding:12px;border-radius:8px;overflow-x:auto}
+  .lang a{margin-right:12px}
+</style>
+</head>
+<body>
+<main>
+  <h1>A1 Phone Assistant</h1>
+  <p>This is a test page. Click the red button in the bottom-right corner to chat.</p>
+  <p class="lang">Interface language: <a href="?lang=mk">Македонски</a><a href="?lang=en">English</a></p>
+  <p>Try: <code>Колку чини Galaxy A57?</code>, <code>Кој е најевтиниот ајфон?</code>,
+     <code>Samsung phones under 20000 denars?</code></p>
+  <p>To add the assistant to your own site, put this before <code>&lt;/body&gt;</code>:</p>
+  <pre>&lt;script src="https://YOUR-CHAT-SERVER/widget.js" defer&gt;&lt;/script&gt;</pre>
+</main>
+<script>
+  // Demo only: ?lang=en switches the widget's language.
+  var l = new URLSearchParams(location.search).get("lang");
+  if (l) document.documentElement.lang = l;
+</script>
+<script src="/widget.js" defer></script>
+</body>
+</html>

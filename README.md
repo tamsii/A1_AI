@@ -1,5 +1,8 @@
 # A1 vs Telekom phone price comparison
 
+> **Chatbot:** `chatbot/` has a Macedonian/English chat assistant for A1's
+> phones that runs on a local AI model. See [chatbot/README.md](chatbot/README.md).
+
 `compare_phones.py` reads the A1 and Telekom device API responses and writes
 one combined file, `phones_a1_vs_telekom.json`, that compares the **outright**
 price of every A1 phone with the same phone (brand + model + storage) at

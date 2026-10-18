@@ -3,3 +3,4 @@ __pycache__/
 .tmp_*
 phones_a1_vs_telekom.json
 phones_a1_vs_telekom.html
+model_test_results.md
