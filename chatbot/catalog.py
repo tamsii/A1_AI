@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import compare_phones  # noqa: E402
 
 EUR_TO_MKD = 61.5
+PHONES_PAGE = "https://www.a1.mk/webshop/mk/phones"
 
 # Cyrillic or colloquial spellings -> the words used in A1 names. Checked
 # before the letter-by-letter transliteration below ("ајфон" is not "ajfon").
@@ -96,6 +97,13 @@ def price_limits(question):
     return tuple(limits)
 
 
+def slug_key(url):
+    """The product name part of an A1 link, letters and digits only:
+    .../samsung-galaxy-s26+-5g-256/1000064140 -> samsunggalaxys265g256"""
+    parts = [p for p in url.rstrip("/").split("/") if p and not p.isdigit()]
+    return re.sub(r"[^a-z0-9]", "", parts[-1].lower()) if parts else ""
+
+
 def fmt_mkd(n):
     return f"{n:,} MKD" if n is not None else "n/a"
 
@@ -112,7 +120,15 @@ class Catalog:
         mtime = os.path.getmtime(self.path)
         if mtime == self.mtime:
             return
-        phones = compare_phones.parse_a1(compare_phones.load_json(self.path), [])
+        data = compare_phones.load_json(self.path)
+        phones = compare_phones.parse_a1(data, [])
+        # Every real product link, by its SKU number and by its name part, to
+        # correct links the model rewrites or makes up (see fix_link).
+        items = data.values() if isinstance(data, dict) else data
+        urls = [v["deviceUrl"] for v in items if isinstance(v, dict) and v.get("deviceUrl")]
+        self.links = set(urls) | {PHONES_PAGE, "https://www.a1.mk", "https://www.a1.mk/"}
+        self.by_sku = {u.rstrip("/").rsplit("/", 1)[-1]: u for u in urls}
+        self.by_slug = {slug_key(u): u for u in urls}
         for p in phones:
             p["title"] = p["name"] if p["name"].lower().startswith(p["brand"].lower()) \
                 else f"{p['brand']} {p['name']}"
@@ -124,6 +140,22 @@ class Catalog:
     def updated(self):
         import datetime
         return datetime.date.fromtimestamp(self.mtime).isoformat()
+
+    def fix_link(self, url):
+        """A link from the model's answer, made safe: a real A1 product link
+        stays as it is, a changed one is matched back to the real link by its
+        SKU number or its name, and anything else on a1.mk becomes the phones page."""
+        core = url.replace("\\", "")  # Markdown escapes such as "s26\\+"
+        tail = ""
+        while core and core[-1] in ".,;:!?":
+            core, tail = core[:-1], core[-1] + tail
+        if not re.match(r"https?://(www\.)?a1\.mk(/|$)", core):
+            return url
+        if core in self.links:
+            return core + tail
+        sku = re.search(r"/(\d{6,})/?$", core)
+        real = (self.by_sku.get(sku.group(1)) if sku else None) or self.by_slug.get(slug_key(core))
+        return (real or PHONES_PAGE) + tail
 
     def overview(self):
         """One line per phone, sorted by brand then price, for the system prompt."""

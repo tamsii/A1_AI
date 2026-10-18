@@ -49,7 +49,8 @@ phones from the list.
 specifications. If you are not sure, say so and give the link to the phone's page.
 - For tariffs, contracts, stock in a shop, or anything the data does not cover, tell the \
 customer to check a1.mk or contact A1 customer care.
-- When you recommend a phone, include its link.
+- When you recommend a phone, include its link. Copy links exactly, character for \
+character, from the data. Never write a link that is not in the data.
 - Keep answers short and friendly. Use a short list when comparing phones.
 - Only talk about A1 phones and offers. Politely decline other requests.
 
@@ -98,6 +99,41 @@ class ThinkFilter:
     def flush(self):
         rest, self.buf = ("" if self.thinking else self.buf), ""
         return rest
+
+
+class LinkFilter:
+    """Holds back each link in a streamed reply until it is complete, then
+    passes it through `fix` (Catalog.fix_link)."""
+
+    END = set(" \t\r\n)]<>\"'*`")
+
+    def __init__(self, fix):
+        self.fix = fix
+        self.buf = ""
+
+    def feed(self, text):
+        self.buf += text
+        out = []
+        while self.buf:
+            i = self.buf.find("http")
+            if i < 0:
+                # Keep a possible start of "http" at the end for the next chunk.
+                keep = next((k for k in (3, 2, 1) if self.buf.endswith("http"[:k])), 0)
+                out.append(self.buf[:len(self.buf) - keep])
+                self.buf = self.buf[len(self.buf) - keep:]
+                break
+            out.append(self.buf[:i])
+            self.buf = self.buf[i:]
+            end = next((j for j, ch in enumerate(self.buf) if ch in self.END), None)
+            if end is None:
+                break  # the link may continue in the next chunk
+            out.append(self.fix(self.buf[:end]))
+            self.buf = self.buf[end:]
+        return "".join(out)
+
+    def flush(self):
+        rest, self.buf = self.buf, ""
+        return self.fix(rest) if rest.startswith("http") else rest
 
 
 class Assistant:
@@ -182,13 +218,14 @@ class Assistant:
         """Yield the reply text piece by piece."""
         messages, _ = self.build_messages(history)
         think = ThinkFilter()
+        links = LinkFilter(self.catalog.fix_link)
         chunks = self.stream_ollama(messages) if self.backend == "ollama" \
             else self.stream_openai(messages)
         for text in chunks:
-            text = think.feed(text)
+            text = links.feed(think.feed(text))
             if text:
                 yield text
-        rest = think.flush()
+        rest = links.feed(think.flush()) + links.flush()
         if rest:
             yield rest
 
