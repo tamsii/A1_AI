@@ -1,0 +1,13 @@
+{
+  "_comment": "Copy the real request from the browser: DevTools > Network > the request that returns the devices > Copy as cURL. Put the URL, method, the headers it needs and the body here. Placeholders: {category}, {page}, {offset}, {size}.",
+  "url": "https://REPLACE-WITH-TELEKOM-HOST/api/GetCategoryDevices",
+  "method": "GET",
+  "category": "MKT00006",
+  "params": {"categoryId": "{category}", "page": "{page}", "pageSize": "{size}"},
+  "headers": {},
+  "body": null,
+  "paging": {"mode": "page", "start": 1, "size": 20},
+  "devices_path": "devices",
+  "total_path": "total",
+  "id_field": "Id"
+}

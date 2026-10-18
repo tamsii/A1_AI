@@ -110,3 +110,66 @@ output as `match_key`.
 The report warns about overrides that match no Telekom device, and about
 automatic matches that look doubtful. For example, Telekom says `5G` but A1
 does not, as in `Redmi 15C` vs `Redmi 15C 5G`.
+
+## Fetching Telekom from the API
+
+`fetch_telekom.py` downloads every device in a Telekom category, following all
+pages, and writes `telekom_devices.json` in the same shape as the API response.
+Then run the comparison as usual:
+
+```bash
+python3 fetch_telekom.py              # uses telekom_api.json, writes telekom_devices.json
+python3 compare_phones.py
+```
+
+### 1. Find the real request
+
+1. Open the Telekom webshop phones page in Chrome/Firefox and open DevTools (F12) → **Network** → filter **Fetch/XHR**.
+2. Reload the page (and click "next page" / "load more" if there is one).
+3. Find the request whose **Response** has `"devices": [...]` and `"total": 65`.
+4. Note the URL, the method (GET/POST), the query string or request body, and
+   which parameter changes between pages. Right-click → **Copy as cURL** shows
+   it all.
+
+### 2. Fill in `telekom_api.json`
+
+```json
+{
+  "url": "https://<telekom host>/api/<endpoint>",
+  "method": "GET",
+  "category": "MKT00006",
+  "params": {"categoryId": "{category}", "page": "{page}", "pageSize": "{size}"},
+  "headers": {},
+  "body": null,
+  "paging": {"mode": "page", "start": 1, "size": 20},
+  "devices_path": "devices",
+  "total_path": "total",
+  "id_field": "Id"
+}
+```
+
+Placeholders are filled in for every page:
+
+| Placeholder | Value |
+|---|---|
+| `{category}` | `category` from the config, or `--category` |
+| `{page}` | page number, starting at `paging.start` and going up by 1 |
+| `{offset}` | number of devices received so far (0, 20, 40, ...), for skip/offset APIs |
+| `{size}` | `paging.size` |
+
+- **Page-number API** (`?page=2&pageSize=20`): `"mode": "page"` and use `{page}`.
+- **Offset API** (`skip=40&take=20`): `"mode": "offset"` and use `{offset}`.
+- **POST with a JSON body**: put the body under `"body"`, e.g.
+  `{"filter": {"categoryId": "{category}"}, "skip": "{offset}", "take": "{size}"}`.
+  A value that is just a placeholder is sent as a number, not a string.
+- **Everything in one response** (no paging): `"mode": "none"`.
+- If the device list or total sit deeper in the response, set
+  `devices_path` / `total_path` with dots, e.g. `"result.items"`.
+- Copy any header the request needs (e.g. `Authorization`, `X-Requested-With`) into `"headers"`.
+
+Paging stops when `total` devices have been collected, or a page comes back
+empty or with nothing new. If the number of unique devices does not equal the
+API's `total`, or a request fails after retries (`--retries`, default 3, for
+network errors, 429 and 5xx), the script exits with an error and leaves the
+existing `telekom_devices.json` untouched. Other options: `--category`,
+`--output`, `--delay` (seconds between pages), `--timeout`, `--max-pages`.
