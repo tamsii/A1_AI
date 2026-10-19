@@ -5,3 +5,5 @@ phones_a1_vs_telekom.json
 phones_a1_vs_telekom.html
 model_test_results.md
 site/
+chat_questions.db
+questions*.csv

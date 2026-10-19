@@ -24,6 +24,7 @@ Files:
 |---|---|
 | `server.py` | The chat server. Python 3.8+, standard library only. |
 | `fetch_details.py` | Reads the specs table from each phone's page on a1.mk into `phone_details.json`. |
+| `question_log.py` | Saves visitors' questions per chat session; `--export` writes them to a CSV for Excel. |
 | `specs.py` | Creates or updates `phone_specs.csv`, the specs table you fill in. |
 | `catalog.py` | Finds phones in a question ("галакси А57", "iphone 17 pro max", "Samsung до 20.000 ден") and formats their data. |
 | `widget.js` | The chat bubble. One `<script>` tag adds it to any page. |
@@ -132,6 +133,26 @@ row per phone model; storage sizes and bundles of the same model share a row.
 The server picks up the changes on the next question, with no restart needed. When
 A1 adds new phones (after `fetch_a1.py`), run `python3 chatbot/specs.py` to add
 rows for them. Everything already filled in is kept.
+
+## Saved questions
+
+The server saves every question visitors type, grouped by chat session, in
+`chat_questions.db` in the project folder. Only the question text, the time and a
+random session id are saved: no answers, names or IP addresses. Phone numbers,
+e-mail addresses and long numbers (ЕМБГ, card numbers) are replaced with
+`[телефон]`, `[e-mail]` and `[број]` before saving. The chat window tells visitors
+that questions are saved anonymously.
+
+To open them in Excel:
+
+```bash
+python3 chatbot/question_log.py --export questions.csv
+```
+
+Start the server with `--no-log` to save nothing. `chat_questions.db` and
+`questions*.csv` are in `.gitignore`: they hold what customers wrote, so keep
+them out of git. Before going live, check with your data-protection contact
+how long questions may be kept.
 
 ## 3. Compare models
 

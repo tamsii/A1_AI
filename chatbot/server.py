@@ -27,6 +27,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from catalog import Catalog
+from question_log import DEFAULT_DB, QuestionLog
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
@@ -333,7 +334,13 @@ class Site:
         return path, path == self.page
 
 
-def make_handler(assistant, allow_origin, slots, site=None):
+def session_id(payload):
+    """The widget's random id for one chat, or "-" if missing or odd."""
+    sid = payload.get("session") if isinstance(payload, dict) else None
+    return sid if isinstance(sid, str) and re.fullmatch(r"[A-Za-z0-9-]{1,40}", sid) else "-"
+
+
+def make_handler(assistant, allow_origin, slots, site=None, log=None):
     class Handler(BaseHTTPRequestHandler):
         server_version = "A1Chat/1.0"
 
@@ -390,9 +397,15 @@ def make_handler(assistant, allow_origin, slots, site=None):
                 length = int(self.headers.get("Content-Length") or 0)
                 if not 0 < length <= MAX_BODY:
                     return self.error(413, "request too large")
-                history = clean_history(json.loads(self.rfile.read(length)))
+                payload = json.loads(self.rfile.read(length))
+                history = clean_history(payload)
             except (ValueError, UnicodeDecodeError) as e:
                 return self.error(400, str(e))
+            if log:
+                try:
+                    log.add(session_id(payload), history[-1]["content"])
+                except Exception as e:  # saving must never stop the answer
+                    self.log_error("could not save the question: %s", e)
 
             if not slots.acquire(timeout=60):
                 return self.error(503, "busy")
@@ -449,6 +462,9 @@ def main(argv=None):
     ap.add_argument("--site", metavar="PAGE.html",
                     help="show this saved web page at / with the chat bubble on it "
                          "(for trying the bot on your site; its _files folder is served too)")
+    ap.add_argument("--log-db", default=DEFAULT_DB,
+                    help="save visitors' questions in this SQLite file (default: %(default)s)")
+    ap.add_argument("--no-log", action="store_true", help="don't save questions")
     ap.add_argument("--parallel", type=int, default=2,
                     help="questions sent to the model at the same time (default: %(default)s)")
     ap.add_argument("--backend", choices=("auto", "ollama", "openai"), default="auto",
@@ -471,11 +487,13 @@ def main(argv=None):
             print(f"ERROR: {args.site} not found", file=sys.stderr)
             return 1
         site = Site(args.site)
+    log = None if args.no_log else QuestionLog(args.log_db)
     handler = make_handler(assistant, args.allow_origin, threading.BoundedSemaphore(args.parallel),
-                           site)
+                           site, log)
     server = ThreadingHTTPServer((args.host, args.port), handler)
     print(f"{len(catalog.phones)} phones loaded from {args.data}")
     print(f"Model {args.model} at {args.llm_url} ({assistant.backend} API)")
+    print(f"Saving questions to {log.path}" if log else "Not saving questions")
     if site:
         print(f"Showing {site.page} with the chat bubble")
     print(f"Chat page: http://{'localhost' if args.host in ('0.0.0.0', '127.0.0.1') else args.host}:{args.port}/")
