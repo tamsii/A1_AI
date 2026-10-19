@@ -140,6 +140,23 @@ def clean_url(url):
     return urllib.parse.quote(url.strip(), safe=":/?#[]@!$&'()*+,;=%-._~")
 
 
+# Text from the "Гаранција и сервис" box that older fetches read as table rows.
+NOT_SPECS = {"гаранција и сервис", "провери статус на сервис", "гаранција од производител"}
+
+
+def clean_fields(fields):
+    """Specs from the a1.mk page, without page text that is not a spec, and
+    with the warranty in months ("12" -> "12 месеци")."""
+    out = {}
+    for k, v in fields.items():
+        if k.lower() in NOT_SPECS or k.isdigit():
+            continue
+        if k.lower() == "гаранција" and v.isdigit():
+            v += " месеци"
+        out[k] = v
+    return out
+
+
 def slug_key(url):
     """The product name part of an A1 link, letters and digits only:
     .../samsung-galaxy-s26+-5g-256/1000064140 -> samsunggalaxys265g256"""
@@ -198,7 +215,7 @@ class Catalog:
             p["url"] = clean_url(p["url"]) if p["url"] else p["url"]
             p["specs"] = {k: v for k, v in specs.get(p["model_key"], {}).items() if v}
             page = page_details.get(p["name"]) or {}
-            p["page_fields"] = page.get("fields") or {}
+            p["page_fields"] = clean_fields(page.get("fields") or {})
             p["in_box"] = page.get("in_box") or []
         self.phones = [p for p in phones if p["available"]]
         self.mtime = mtime
